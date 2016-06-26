@@ -1,3 +1,8 @@
+;Functions for 16-bit Real Mode
+; ReadSectors
+; Test_a20
+; ClearBackground
+; PrintString
 
 ;***************************************
 ;ReadSectors
@@ -40,6 +45,139 @@ ReadSectors:
         ret
 
 
+;**********************************
+;	Test_A20
+;		return	@ax	:0 - A20 disabled
+;					:1 - A20 enabled
+;**********************************
+Test_A20:
+
+	pushf
+	push	ds
+	push	es
+	push	di
+	push	si
+
+	cli
+
+	xor		ax, ax
+	mov		es, ax
+	not		ax
+	mov		ds, ax
+	mov 	di, 0x500
+	mov 	si, 0x510
+	mov 	al, byte [es:di]	; 0000:500
+	push 	ax
+	mov 	al, byte [ds:si] 	; FFFF:510
+	push 	ax
+
+	mov 	byte [es:di], 0x00
+	mov 	byte [ds:si], 0xFF
+
+	cmp 	byte [es:di], 0xFF	; Compare value
+
+	pop 	ax
+	mov 	byte [ds:si], al
+	pop 	ax
+	mov 	byte [es:di], al
+
+	mov		ax, 0
+	je 		check_a20_exit
+
+	mov 	ax,1
+
+
+	check_a20_exit:
+		pop 	si
+		pop 	di
+		pop 	es
+		pop 	ds
+		popf
+
+	sti			;TODO: Check if it's needed
+	ret
+	
+
+;**********************************
+;	EnableA20_BIOS
+;**********************************
+EnableA20_BIOS:
+	mov		ax, 0x2401
+	int		0x15
+	ret
+
+
+;**********************************
+;	EnableA20_SysCtrl
+;		Might not work for some system
+;**********************************
+EnableA20_SysCtrl:
+	in		al, 0x92
+	test	al, 2
+	jnz		.Already_On
+	or		al, 2
+	and		al, 0xFE	; Make sure 0 bit (fast rest) == 0
+	out		0x92, al
+
+	.Already_On:
+	ret
+
+
+;**********************************
+;	EnableA20_Keyboard
+;**********************************
+EnableA20_Keyboard:
+	cli
+	pusha
+
+		; Disable Keyboard
+		call 	.WaitInput
+		mov		al, 0xAD
+		out		0x64, al
+
+		; Read output port
+		call	.WaitInput
+		mov		al, 0xD0
+		out		0x64, al
+
+		; Read Input Buffer
+		call	.WaitOutput
+		in		al, 0x60
+		push	eax
+
+		; Write Output Port
+		call	.WaitInput
+		mov		al, 0xD1
+		out		0x64, al
+
+		; Send new status value
+		call	.WaitInput
+		pop		eax
+		or		al, 2
+		out		0x60, al
+
+		; Enable Keyboard
+		call	.WaitInput
+		mov		al, 0xAE
+		out		0x64, al
+
+		call	.WaitInput
+
+	popa
+	sti
+	ret
+
+	.WaitOutput:
+		in		al, 0x64
+		test	al, 1
+		jz		.WaitOutput
+		ret
+
+	.WaitInput:
+		in		al, 0x64
+		test	al, 2
+		jnz		.WaitInput
+		ret
 
 
 ;**********************************

@@ -12,7 +12,8 @@ int main(void) {
 	printk(string);
 	asm
 	(
-		"jmp $\n\t"
+		"cli\n\t"
+		"hlt\n\t"
 	);
 	return 0;
 }

@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS= -c -masm=intel -m32
+CFLAGS= -c -masm=intel -m32 -O0
 LDFLAGS=
 SOURCES=
 OBJECTS= -o

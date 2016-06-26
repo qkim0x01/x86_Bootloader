@@ -7,34 +7,66 @@ jmp	Entry16
 
 Entry16:
 
+
+	call	ClearBackground
+	mov		ax, 0
+	mov		ds, ax
+	mov		si, Msg_Booting
+	call	PrintString
+
+
 	; Load Kernel
-
-    ;Call ClearBackground
-    mov ax, 0
-    mov ds, ax
-    mov si, bootingMsg
-    Call PrintString
-
 	; TODO: change parameter according to the actual file size
-	mov	ax, 1; Kernel size
-	mov	ebx, 0x40000000 ; Kernel address
-	mov	ecx, 2 ; Kernel start LBA
+	mov		ax, 1			; Kernel size
+	mov		ebx, 0x40000000 ; Kernel address
+	mov		ecx, 2 			; Kernel start LBA
 	call	ReadSectors
 
-	xor	ax, ax
+	.A20_Enable:
+		call 	Test_A20
+		cmp		ax, 1
+		je 		.A20_Complete
+
+		call 	EnableA20_BIOS
+		call 	Test_A20
+		cmp		ax, 1
+		je 		.A20_Complete
+
+		call 	EnableA20_SysCtrl
+		call	Test_A20
+		cmp		ax, 1
+		je		.A20_Complete
+
+		call	EnableA20_Keyboard
+		call	Test_A20
+		cmp		ax, 1
+		je		.A20_Complete
+
+		mov		ax, 0
+		mov		ds, ax
+		mov		si, Msg_A20_Error
+		call	PrintString
+		jmp		$
+		nop
+
+	.A20_Complete:
+
+	xor		ax, ax
 	lgdt	[gdtr]	; Load gdt
-	cli         ; Disable interrupt
+	cli         	; Disable interrupt
 
 	; Turn on 32-bit protected mode
-	mov	eax, cr0
-	or	eax, 1
-	mov	cr0, eax
+	mov		eax, cr0
+	or		eax, 1
+	mov		cr0, eax
 
-	jmp	$+2
+
+	jmp		$+2
 	nop
 	nop
 
-	jmp	codeDescriptor:Entry32
+
+	jmp		codeDescriptor:Entry32
 
 ;************************
 ;	32-bit
@@ -51,6 +83,8 @@ Entry32:
 	mov	ss, bx
 	xor	esp, esp
 	mov	esp, 0x9FFFF
+
+	sti
 
 	jmp codeDescriptor:0x40000
 	
@@ -96,7 +130,8 @@ videoDescriptor equ 0x18
 
 gdt_end:
 
-bootingMsg db "Now Booting..", 0
+Msg_Booting db "Now Booting..", 0
+Msg_A20_Error db "ERROR:Unable to turn on A20!",0
 
 ;gdt_codeSeg equ (codeDescripter - gdt)
 ;gdt_dataSeg equ dataDescripter - gdt
